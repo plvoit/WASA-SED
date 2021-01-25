@@ -49,12 +49,12 @@ integer :: columnheader(1000) ! storing column heads of input files
 !REAL :: inflow_class(6),outflow_class(6),retention_class(6),volume_class(6)
 !REAL :: sedinflow_class(6),sedoutflow_class(6),sedretention_class(6),sedimentation_class(6)
 ! -----------------------------------------------------------------------
-IF (STATUS == 0) THEN
+IF (STATUS == 0) THEN !begin of simulation
 
-reservoir_check=0 !(0=simulation will all components; 1=simulation without hillslope and river modules)
-reservoir_balance=1 !(0=inflow and outflow discharges must be provided as input file; 1=only inflow discharges must be provided as input file)
-reservoir_print=1 !(0=results printed at the end of the timestep; 1=results printed at the end of the simulated year)
-f_intake_obs = .false.
+reservoir_check   = 0 !(0=simulation with all components; 1=simulation without hillslope and river modules)
+reservoir_balance = 1 !(0=inflow and outflow discharges must be provided as input file; 1=only inflow discharges must be provided as input file)
+reservoir_print   = 1 !(0=results printed at the end of the timestep; 1=results printed at the end of the simulated year)
+f_intake_obs      = .false.
 
 if (reservoir_check==0) reservoir_balance=1
 
@@ -234,6 +234,11 @@ storcap(:)=0.
   CLOSE (11)
 
   
+where (do_pre_outflow)
+    res_flag(1:subasin) = .FALSE. !disable reservoirs in pre-specified basins, as their output is already given
+    res_index(1:subasin) = 0
+end where
+
 !Anne & Till 2019 fix reservoir memory issue:
         !to decrease array size & only do calculations for subbasins with reservoir,  
         !moved all arrays with "subbasin" from allocate.h, line 400 ff to reservoir.f90 
@@ -697,7 +702,7 @@ storcap(:)=0.
   ENDIF
 
   DO i=1,subasin
-    if (res_index(i) /= 0.) then !Anne inserted this line  
+    if (res_index(i) /= 0) then !Anne inserted this line  
         nbrbat1=nbrbat(res_index(i))
         IF (nbrbat(res_index(i)) /= 0) THEN
           DO j=1,nbrbat1
@@ -710,7 +715,7 @@ storcap(:)=0.
 
 !Ge initialization of the stage-volume curves for each sub-basin (erosion/deposition process)
   DO i=1,subasin
-    if (res_index(i) /= 0.) then !Anne inserted this line  
+    if (res_index(i) /= 0) then !Anne inserted this line  
         nbrbat1=nbrbat(res_index(i))
         IF (nbrbat(res_index(i)) /= 0) THEN
           DO j=1,nbrbat1
@@ -814,7 +819,7 @@ storcap(:)=0.
 !Ge initialization of output files
   IF (f_res_cav) then
       DO i=1,subasin
-        if (res_index(i) /= 0.) then !Anne inserted this line  
+        if (res_index(i) /= 0) then !Anne inserted this line  
            IF (nbrbat(res_index(i)) /= 0) THEN
             IF (res_flag(i)) THEN
               WRITE(subarea,*)id_subbas_extern(i)
@@ -870,7 +875,7 @@ END IF
 
 
 ! -----------------------------------------------------------------------
-IF (STATUS == 1) THEN
+IF (STATUS == 1) THEN !beginning of a new simulation year
 ! initialize ...
 
 !Ge initialization of parameters
@@ -881,18 +886,24 @@ IF (STATUS == 1) THEN
     qlateral=0.
  !   volact(1,:)=0. !Till: already initialized in model_state_io
     damareaact=0.
+
+    etdam = 0.
+    precdam = 0.
+    res_qout = 0.
+    withdraw_out = 0.
+    damelevact = 0.
   
 
   !IF (t > tstart) THEN !Andreas
   DO i=1,subasin !Andreas
    IF (res_flag(i)) THEN
      IF (t > damyear(i) .AND. t > tstart) THEN  !continuing simulations
-       volact(1,i)=volact(daylastyear*nt,i)
-       daystorcap(1,res_index(i))=daystorcap(daylastyear*nt,res_index(i))
-       daydamalert(1,res_index(i))=daydamalert(daylastyear*nt,res_index(i))
-       daydamdead(1,res_index(i))=daydamdead(daylastyear*nt,res_index(i))
-       daymaxdamarea(1,res_index(i))=daymaxdamarea(daylastyear*nt,res_index(i))
-	   dayminlevel(1,res_index(i))=dayminlevel(daylastyear*nt,res_index(i))
+       volact       (1,i)            = volact       (daylastyear*nt,i)
+       daystorcap   (1,res_index(i)) = daystorcap   (daylastyear*nt,res_index(i))
+       daydamalert  (1,res_index(i)) = daydamalert  (daylastyear*nt,res_index(i))
+       daydamdead   (1,res_index(i)) = daydamdead   (daylastyear*nt,res_index(i))
+       daymaxdamarea(1,res_index(i)) = daymaxdamarea(daylastyear*nt,res_index(i))
+	   dayminlevel  (1,res_index(i)) = dayminlevel  (daylastyear*nt,res_index(i))
 
      ELSE IF (t == damyear(i) .OR. (t > damyear(i) .AND. t == tstart)) THEN  !Andreas
        if (volact(1,i)== -1) then !only initialize those that have not been initialized by loading from stat-file
@@ -1135,7 +1146,8 @@ IF (STATUS == 1) THEN
 END IF
 
 ! -----------------------------------------------------------------------
-IF (STATUS == 2) THEN
+IF (STATUS == 2) THEN !regular call during timestep
+
 
 ! simulation timestep
   if (river_transport.ne.1) then
@@ -1418,7 +1430,7 @@ IF (STATUS == 2) THEN
 
 ! 4c) Withdrawal water volume to supply the water use sectors
       IF (volact(step,upstream) > .05*daystorcap(step,res_index(upstream))) THEN
-        withdraw_out(step,res_index(upstream)) = withdrawal(upstream)
+        withdraw_out(step,res_index(upstream)) = withdrawal(upstream) !ii: first, we should check that enough water is really available in teh reservoir
         volact(step,upstream)=MAX(0.,volact(step,upstream)-withdrawal(upstream))
 	  ELSE
         withdraw_out(step,res_index(upstream)) = 0.
@@ -1544,8 +1556,7 @@ IF (STATUS == 2) THEN
 ! CASE 1: stage-area-volume curve is not provided
        if (nbrbat(res_index(upstream)) == 0) then
 	    if (decstorcap(step,res_index(upstream)) >= daystorcap(step,res_index(upstream)) .or. daystorcap(step,res_index(upstream)) == 0.) then
-	     write(*,*) 'the resevoir located at the outlet point of sub-basin:',id_subbas_extern(upstream)
-	     write(*,*) 'lost its total storage capacity due to sediment deposition'
+	     write(*,'(A, i0, A)') 'Reservoir at outlet of sub-basin ', id_subbas_extern(upstream), ' completely silted up!'
 		 storcap(upstream)=0.
 	     daystorcap(step,res_index(upstream))=0.
 		 do j=1,nbrbat(res_index(upstream))
@@ -1833,7 +1844,7 @@ ELSE  ! reservoir does not (yet) exist
         
   ENDIF
 
-! END of STATUS = 2
+! END of STATUS = 2 !regular call during timestep
 END IF
 
 ! -----------------------------------------------------------------------
@@ -1880,7 +1891,7 @@ endif
         CLOSE(11)
 		ENDIF
       ENDIF
-      if (res_index(i) /= 0.) then !Anne inserted this line
+      if (res_index(i) /= 0) then !Anne inserted this line
           IF (res_flag(i) .and. t >= damyear(i) .and. nbrbat(res_index(i)) /= 0) THEN
             WRITE(subarea,*)id_subbas_extern(i)
 		    IF (f_res_cav) THEN

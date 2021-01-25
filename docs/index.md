@@ -4,7 +4,7 @@
 main contributors:
 Andreas Güntner (2000-2002), Eva Nora Müller (2006-2009), George Mamede (2006-2009), Till Francke (2006-...), Pedro Medeiros (2007-2008), Tobias Pilz (2016), Erwin Rottler (2017), Paul Voit (2020)
 
-**6.10.2020<br>
+**30.12.2020<br>
 WASA-SED rev_268**
 
 Developed within the SESAM-Project:<br>
@@ -909,7 +909,7 @@ Eg. ```rainy_season.dat``` contains the points in time that serve as temporal no
 “-1” can be used as a wildcard for sub-basins, vegetation classes and years. The file is interpreted top to bottom, i.e. if multiple matches are found, the uppermost is used. Thus, a fallback specification (“all other cases”) should go into the last line (see example).
 A standard (legacy) rainy_season.dat can be generated from rainfall data using the function rainy_season of the lumpR-package. If rainy_season.dat is missing or contains only the headerlines, only the first value in vegetation.dat is used (i.e. no seasonality).
 
-The optional files ```k_seasons.dat```, ```c_seasons.dat```, ```p_seasons.dat```, ```coarse_seasons.dat```, ```n_seasons.dat``` work analogously for the USLE factors K, C, P, the coarse fraction and Manning’s n. If any of these files is found, four respective columns (instead of the default one) must be given in ```svc.dat```.
+The optional files ```k_seasons.dat```, ```c_seasons.dat```, ```p_seasons.dat```, ```coarse_seasons.dat```, ```n_seasons.dat``` work analogously for the USLE factors K, C, P, the coarse fraction and Manning’s n. If any of these files is found, four respective columns (instead of the default one) must be given in ```svc.dat```. Any seasonality file must reside in the input-subfolder ```hillslope```.
 
 Example: The example file above is for two specific simulation years: 1980 and 1981. For vegetation class 2 in sub-basin 49, the rainy season in 1980 started on the 40th day (09.02.1980), and stopped on the 175th day (28.06.1980) (line 4). For all other vegetation classes, it started ten days later (DOY 20) (line 5). For sub-basin 50, the dynamics are identical for all vegetation classes (line 6).
 
@@ -930,7 +930,7 @@ Subbasin-ID	mean_kf-calib-factor
 
 This file is optional and is only read if doscale (in ```do.dat```) is set to “.T.”. In this case, ```scaling_factor.dat``` is expected in the subdirectory ```Others/```.
 
-Example: All values for saturated hydraulic conductivity during infiltration in sub-basin 1 are modified by dividing them by 10. Maximum interception is adjusted by setting it to (0.340+0.647*10).
+Example: All values for saturated hydraulic conductivity during infiltration in sub-basin 1 are modified by dividing them by 10. Maximum interception is adjusted by multiplication with 1/(0.340+0.647*10).
 
 **12)** ```calibration.dat```<br>
 (optional)
@@ -1205,9 +1205,9 @@ Date	Timestep	Sub-basin-ID.
 *Timestep*: timestep (not interpreted in daily resolution, 1..24 for hourly resolution)<br>
 *Subbasin-ID*: ID of sub-basin
 
-This optional file allows specifying the water output of selected sub-basins. WASA expects this file in the folder Time_series. If this file is not found, all sub-basins are treated regularly. Otherwise, any outflow that is specified in this file is used directly as an output of the respective sub-basin – no computations are performed within this sub-basin (evaporation, groundwater, river routing, etc.). Consequently, no climate input needs to be specified for such subbasins. WASA reads data from this file sequentially, starting from start of simulation and every calendar year (e.g. chunks of 365 days). Warning: The subsequent rows are assumed without gaps and not checked for completeness in the time series. "-1" is regarded as "no data" and will lead to "no data" in the riverflow in all affected downstream subbasins.
+This optional file allows specifying the water output of selected sub-basins. If this file is not found in the folder ```Time_series```, all sub-basins are treated regularly. Otherwise, any outflow that is specified in this file is used directly as an output of the respective sub-basin – no computations are performed within this sub-basin (evaporation, groundwater, river routing, reservoir, etc.). Consequently, no climate input needs to be specified for such subbasins. WASA reads data from this file sequentially, starting from start of simulation and every calendar year (e.g. chunks of 365 days). Warning: The subsequent rows are assumed without gaps and not checked for completeness in the time series. "-1" is regarded as "no data" and will lead to "no data" in the riverflow in all affected downstream subbasins.
 
-Example: Sub-basin 4 has pre-specified discharge of 0.5 m³/s for 1 Sep 2005.
+Example: Sub-basin 4 has pre-specified discharge of 0.5 m<sup>3</sup>/s for 1 Sep 2005.
 
 **6)** ```subbasin_outsed.dat``` <br> 
 (optional)
@@ -1429,7 +1429,7 @@ Subbasin-ID, dry_dens[ton/m**3], factor_actlay[-]
 *dry\_dens*: Dry bulk density of the sediment deposited in the sub-basin's reservoir \[ton/m<sup>3</sup>] <br>
 *factor\_actlay*: Calibration parameter for the determination of the active layer thickness \[-]
 
-Example: At the outlet point of the sub-basin with the ID 60 there is a reservoir with a dry bulk density of 1.5 ton/m<sup>3</sup>. The calibration parameter for the determination of the active layer thickness at that reservoir is equal to 1. It means that the default value of active layer thickness (set to 0.03 mm, derived from the simulation for the Barasona reservoir in Spain) is multiplied by a factor of 1. For the calculation of sediment balance using the simplified modelling approach, the third column with values of factor_actlay must not be entered in the file. The order of the sub-basins in the first column has to follow the same order of the sub-basin IDs as was used in ```hymo.dat``` (due to computational reasons); otherwise, an error message occurs. Sub-basins without outlet reservoirs must not be entered in the file.
+Example: At the outlet point of the sub-basin with the ID 60 there is a reservoir with a dry bulk density of 1.5 ton/m<sup>3</sup>. The calibration parameter for the determination of the active layer thickness at that reservoir is equal to 1. It means that the default value of active layer thickness (set to 0.03 mm, derived from the simulation for the Barasona reservoir in Spain) is multiplied by a factor of 1. For the calculation of sediment balance using the simplified modelling approach, the third column with values of factor_actlay must not be entered in the file. Sub-basins without outlet reservoirs must not be entered in the file. Unknown subbasins are ignored. For unspecified reservoirs, default values of 1.5 and 1, respectively, will be used.
 
 **9)** ```cross_sec_”ID”.dat``` <br> 
 (optional)
@@ -2053,9 +2053,9 @@ Nr. |Output file | Content
 **1)** ```res_”ID”_watbal.out```
 
 ```
-Subbasin-ID, year, day, hour, inflow(m**3/s), intake(m**3/s), overflow(m**3/s), qbottom(m**3/s), qout(m**3/s), elevation(m), area(m**2), volume(m**3)
-60  1980   1   1     55.04      6.12      0.00      0.00      6.12    440.86     5255332.50    49625572.00
-60  1980   1   2     42.01      6.12      0.00      0.00      6.12    441.48     4580464.00    52922032.00
+Subasin-ID	year	day	hour	qlateral(m**3/s)	inflow(m**3/s)	evap(m**3)	prec(m**3)	intake(m**3/s)	overflow(m**3/s)	qbottom(m**3/s)	qout(m**3/s)	withdrawal(m**3/s)	    elevation(m)	area(m**2)	volume(m**3
+60	1980	1	1	55.04	6.12	25478	0	0		0.00	0.00	6.12	440.86	5255332.50	49625572.00
+60	1980	1	2	42.01	6.12	24579	0	0		0.00	0.00	6.12	441.48	4580464.00	52922032.00
 …
 ```
 
@@ -2063,11 +2063,15 @@ Subbasin-ID, year, day, hour, inflow(m**3/s), intake(m**3/s), overflow(m**3/s), 
 *year*: Year of simulation <br>
 *day*: Day of simulation <br>
 *hour*: Hour of simulation <br>
+*qlateral*: lateral inflow discharge into the subbasin's reservoir \[m<sup>3</sup>/s] <br>
 *inflow*: Water inflow discharges into the sub-basin's reservoir \[m<sup>3</sup>/s] <br>
-*intake*: Water outflow discharges through water intake devices in the sub-basin's reservoir \[m<sup>3</sup>/s] <br>
-*qbottom*: Water outflow discharges through bottom outlets in the sub-basin's reservoir \[m<sup>3</sup>/s] <br>
+*evap*: evaporation from the subbasin's reservoir \[m<sup>3</sup>] <br>
+*prec*: precipitation into the subbasin's reservoir \[m<sup>3</sup>] <br>
+*intake*: Water outflow discharges through water intake devices in the sub-basin's reservoir \[m<sup>3</sup>/s]. Should correspond to values in  ```intake.dat```.<br>
 *overflow*: Water overflow discharges in the sub-basin's reservoir \[m<sup>3</sup>/s] <br>
+*qbottom*: Water outflow discharges through bottom outlets in the sub-basin's reservoir \[m<sup>3</sup>/s] <br>
 *qout*: Total outflow discharges in the sub-basin's reservoir \[m<sup>3</sup>/s] <br>
+*withdrawal*: withdrawal water volume to supply the water use sectors Should correspond to values in  ```reservoir.dat```.) \[m<sup>3</sup>/s] <br>
 *elevation*: Reservoir level in the sub-basin's reservoir \[m] <br>
 *area*: Reservoir area in the sub-basin's reservoir \[m<sup>2</sup>] <br>
 *volume*: Reservoir volume in the sub-basin's reservoir \[m<sup>3</sup>]

@@ -9,6 +9,7 @@ use routing_h
 use hymo_h
 use time_h
 use reservoir_h
+use utils_h
 
 IMPLICIT NONE
 
@@ -24,7 +25,7 @@ INTEGER :: i,j,j1,id,ih,dummy1,dummy2,nbrsec1,k,b,p,cont,istate,dummy1a,ka !irou
 INTEGER :: g, npt,nbrbat1
 
 CHARACTER(20) :: subarea,section
-INTEGER :: c,dummy14
+INTEGER :: c,dummy14, line
 
 ! Computation of fractional erosion for each cross section (fractional suspended load transport)
 !Ge the weighting factor to include incoming sediment into the carrying capacity has to be read
@@ -61,6 +62,7 @@ real :: elevhelp,areahelp(200),volhelp(200),areahelp2(200),volhelp2(200)
 real :: dummy9 !,dummy12,dummy13
 real :: accum1,accum2,dummy15,gsize(2)
 character(len=1000) :: fmtstr	!string for formatting file output
+logical :: write_output !for indicating is file should be created
 
 
 
@@ -155,7 +157,7 @@ nbrsec=0
 	IF (istate==0) THEN
       READ(11,*);READ(11,*)
       DO i=1,subasin
-        if (res_index(i) /= 0.) then !Anne inserted this line
+        if (res_index(i) /= 0) then !Anne inserted this line
             nbrsec1=nbrsec(res_index(i))
             IF (nbrbat(res_index(i)) /= 0 .AND. nbrsec(res_index(i)) /= 0) THEN
               READ(11,*) dummy1,dummy2,(manning_sec(j,res_index(i)),j=1,nbrsec1)
@@ -178,7 +180,7 @@ nbrsec=0
 
 !Distance from the cross section to the dam (m)
   DO i=1,subasin
-     if (res_index(i) /= 0.) then !Anne inserted this line 
+     if (res_index(i) /= 0) then !Anne inserted this line 
         nbrsec1=nbrsec(res_index(i))
         IF (nbrsec(res_index(i)) /= 0) THEN
           DO j=1,nbrsec1
@@ -194,7 +196,7 @@ nbrsec=0
 
 !Length of the reach represented by each cross section (m)
   DO i=1,subasin
-    if (res_index(i) /= 0.) then !Anne inserted this line 
+    if (res_index(i) /= 0) then !Anne inserted this line 
         nbrsec1=nbrsec(res_index(i))
         IF (nbrsec(res_index(i)) /= 0) THEN
           DO j=1,nbrsec1
@@ -211,24 +213,41 @@ nbrsec=0
   ENDDO
 
 ! Read sedimentological parameters
-  OPEN(11,FILE=pfadp(1:pfadj)// 'Reservoir/sed.dat',STATUS='unknown')
-  READ(11,*);READ(11,*)
-  DO i=1,subasin
-    IF (storcap(i) > 0.) THEN
-     IF (nbrsec(res_index(i)) == 0) read(11,*) dummy1,dry_dens(res_index(i))
-     IF (nbrsec(res_index(i)) /= 0) read(11,*) dummy1,dry_dens(res_index(i)),factor_actlay(res_index(i))
-!     IF (nbrsec(i) /= 0) read(11,*) dummy1,dry_dens(i),sed_flag(i)
-	ENDIF
-    IF (storcap(i) == 0.) dummy1=id_subbas_extern(i)
-    IF (dummy1 /= id_subbas_extern(i)) THEN
-      WRITE(*,*) 'ERROR: Sub-basin-IDs in file sed.dat must have the same ordering scheme as in hymo.dat'
-      STOP
-    END IF
-!write(*,*) dummy1,dry_dens(i),factor_actlay(i)
-!write(*,*)param_a(i,1),param_b(i,1)
-!write(*,*)param_a(i,2),param_b(i,2)
-  END DO
-  CLOSE(11)
+  OPEN(11,FILE=pfadp(1:pfadj)// 'Reservoir/sed.dat', IOSTAT=istate, STATUS='old')
+  IF (istate==0) THEN
+      READ(11,*);READ(11,*, IOSTAT=istate)
+      dry_dens = 1.5 !default values
+      factor_actlay = 1.
+      line = 2 !for counting lines
+      do while (istate==0)
+          READ(11,'(a)',IOSTAT=istate)cdummy
+          if (istate/=0) exit
+          line = line + 1
+          READ(cdummy,*,IOSTAT=istate) dummy1
+          if (istate/=0) then
+              WRITE(*,'(A, i0)') 'ERROR: format error in sed.dat, line ', line
+              STOP
+          end if
+          i = id_ext2int(dummy1, id_subbas_extern)    !get internal reservoir id
+          IF (i==-1) THEN    !specified subbas
+              write(*,'(a,i0,a,i0,a)')'WARNING: could not find subbasin ', dummy1,' listed in sed.dat, line ', line,', ignored.'
+              cycle
+          END IF
+          IF (storcap(i) > 0.) THEN
+              IF (nbrsec(res_index(i)) == 0) read(cdummy,*,IOSTAT=istate) dummy1,dry_dens(res_index(i))
+              IF (nbrsec(res_index(i)) /= 0) read(cdummy,*,IOSTAT=istate) dummy1,dry_dens(res_index(i)),factor_actlay(res_index(i))
+              !     IF (nbrsec(i) /= 0) read(cdummy,*) dummy1,dry_dens(i),sed_flag(i)
+              if (istate/=0) then
+                  WRITE(*,'(A, i0)') 'ERROR: format error in sed.dat, line ', line
+                  STOP
+              end if
+          ENDIF
+      end do
+      CLOSE(11)
+   ELSE
+      write(*,'(A)')'ERROR: '//pfadp(1:pfadj)// 'Reservoir/sed.dat could not be opened.'
+      stop
+   END IF
 
 !  OPEN(11,FILE=pfadp(1:pfadj)// 'Reservoir/sed.dat',STATUS='unknown')
 !  READ(11,*)
@@ -245,7 +264,7 @@ nbrsec=0
 ! cross sections geometry / initial bed elevation
   g=0 !flag for indicating file coherence
   DO i=1,subasin
-     if (res_index(i) /= 0.) then !Anne inserted this line 
+     if (res_index(i) /= 0) then !Anne inserted this line 
         IF (nbrsec(res_index(i)) /= 0) THEN
           WRITE(subarea,*)id_subbas_extern(i)
 	      OPEN(11,FILE=pfadp(1:pfadj)//'Reservoir/cross_sec_'//trim(adjustl(subarea))//'.dat',STATUS='unknown')
@@ -278,7 +297,7 @@ nbrsec=0
   ENDDO
 
   DO i=1,subasin
-   if (res_index(i) /= 0.) then !Anne inserted this line   
+   if (res_index(i) /= 0) then !Anne inserted this line   
    IF (sed_flag(res_index(i))==1) THEN
     IF (nbrsec(res_index(i)) /= 0) THEN
 	  pt_long0(res_index(i))=0			!pt_long0(i) should be read in the file sed.dat (not implemented)
@@ -316,7 +335,7 @@ nbrsec=0
 
 ! initialization of the cross section geometry / actual bed elevation
   DO i=1,subasin
-    if (res_index(i) /= 0.) then !Anne inserted this line   
+    if (res_index(i) /= 0) then !Anne inserted this line   
         nbrsec1=nbrsec(res_index(i))
         IF (nbrsec(res_index(i)) /= 0) THEN
           DO j=1,nbrsec1
@@ -334,7 +353,7 @@ nbrsec=0
 !Ge it represents the sediment layer thickness below the initial bed elevation
 !Ge y_original(m,j,i) <= y_sec0(m,j,i)
   DO i=1,subasin
-     if (res_index(i) /= 0.) then !Anne inserted this line   
+     if (res_index(i) /= 0) then !Anne inserted this line   
         IF (nbrsec(res_index(i)) /= 0) THEN
           WRITE(subarea,*)id_subbas_extern(i)
           OPEN(11,FILE=pfadp(1:pfadj)// 'Reservoir/original_sec_'//trim(adjustl(subarea))//'.dat', IOSTAT=istate,STATUS='old')
@@ -400,7 +419,7 @@ nbrsec=0
       endif	 !Anne    
   ENDDO
   DO i=1,subasin
-     if (res_index(i) /= 0.) then !Anne inserted this line  
+     if (res_index(i) /= 0) then !Anne inserted this line  
         IF (nbrsec(res_index(i)) /= 0) THEN
 	      nbrsec1=nbrsec(res_index(i))
           DO j=1,nbrsec1
@@ -419,7 +438,7 @@ nbrsec=0
 
 ! Initial deposition area of each cross section (m2)
   DO i=1,subasin
-     if (res_index(i) /= 0.) then !Anne inserted this line 
+     if (res_index(i) /= 0) then !Anne inserted this line 
         nbrsec1=nbrsec(res_index(i))
         IF (nbrsec(res_index(i)) /= 0) THEN
           DO j=1,nbrsec1
@@ -438,7 +457,7 @@ nbrsec=0
 
 ! Initial deposition volume of each cros section (m3)
   DO i=1,subasin
-    if (res_index(i) /= 0.) then !Anne inserted this line  
+    if (res_index(i) /= 0) then !Anne inserted this line  
         nbrsec1=nbrsec(res_index(i))
         IF (nbrsec(res_index(i)) /= 0) THEN
           DO j=1,nbrsec1
@@ -453,7 +472,7 @@ nbrsec=0
 ! Initial sediment volume of the sub-basins' reservoir (m3)
  volbed0=0.
   DO i=1,subasin
-    if (res_index(i) /= 0.) then !Anne inserted this line  
+    if (res_index(i) /= 0) then !Anne inserted this line  
         nbrsec1=nbrsec(res_index(i))
         IF (nbrsec(res_index(i)) /= 0) THEN
           DO j=1,nbrsec1
@@ -465,7 +484,7 @@ nbrsec=0
   ENDDO
 
   DO i=1,subasin
-     if (res_index(i) /= 0.) then !Anne inserted this line 
+     if (res_index(i) /= 0) then !Anne inserted this line 
         nbrsec1=nbrsec(res_index(i))
         IF (nbrsec(res_index(i)) /= 0) THEN
           DO j=1,nbrsec1
@@ -478,7 +497,7 @@ nbrsec=0
       endif	 !Anne  
   END DO
   DO i=1,subasin
-     if (res_index(i) /= 0.) then !Anne inserted this line 
+     if (res_index(i) /= 0) then !Anne inserted this line 
             nbrsec1=nbrsec(res_index(i))
             IF (nbrsec(res_index(i)) /= 0) THEN
               DO j=1,nbrsec1
@@ -503,13 +522,11 @@ nbrsec=0
   OPEN(11,FILE=pfadp(1:pfadj)// 'Reservoir/main_channel.dat', IOSTAT=istate,STATUS='old')
 	IF (istate/=0) THEN					!main_channel.dat not found
       write(*,*)'WARNING: '//pfadp(1:pfadj)// 'main_channel.dat not found, using defaults'
-      DO i=1,subasin
-	    sed_flag(res_index(i))=0 !0 = changes on sideslope is not controlled
-	  ENDDO
+      sed_flag = 0 !0 = changes on sideslope is not controlled
     ELSE
     READ(11,*);READ(11,*)
         DO i=1,subasin
-        if (res_index(i) /= 0.) then !Anne inserted this line    
+        if (res_index(i) /= 0) then !Anne inserted this line    
  	        sed_flag(res_index(i))=1 !changes on sideslope is controlled avoiding steeper slopes by erosion processes
             nbrsec1=nbrsec(res_index(i))
             IF (nbrbat(res_index(i)) /= 0 .AND. nbrsec(res_index(i)) /= 0) THEN
@@ -533,7 +550,7 @@ nbrsec=0
   
 
   DO i=1,subasin
-    if (res_index(i) /= 0.) then !Anne inserted this line  
+    if (res_index(i) /= 0) then !Anne inserted this line  
     nbrsec1=nbrsec(res_index(i))
             IF (sed_flag(res_index(i))==1) THEN
              IF (nbrsec(res_index(i)) /= 0) THEN
@@ -578,7 +595,7 @@ nbrsec=0
 
 ! stage-area and stage-vulume curves given in the file cav.dat is disregarded. Values derived from cross section are used instead
   DO i=1,subasin   
-    if (res_index(i) /= 0.) then !Anne inserted this line  
+    if (res_index(i) /= 0) then !Anne inserted this line  
         IF (nbrsec(res_index(i)) /= 0) THEN
 	     nbrbat1=nbrbat(res_index(i))
          DO b=1,nbrbat1
@@ -652,29 +669,34 @@ nbrsec=0
 !Ge initialization of output files
 !Ge check if could be read in do.dat to print either general results or detailed results
   DO i=1,subasin
-    if (res_index(i) /= 0.) then !Anne inserted this line
-        IF (nbrsec(res_index(i)) /= 0) THEN
-          WRITE(subarea,*)id_subbas_extern(i)
-	      OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_hydraul.out',STATUS='replace')
-          IF (f_res_hydraul) then
-	        WRITE(11,*)'Subasin-ID, year, day, hour, section-ID, depth_sec(m), watelev_sec(m), area_sec(m**2), topwidth_sec(m), energslope_sec(-), hydrad_sec(m), meanvel_sec(m/s), discharge_sec(m**3/s)'
-            CLOSE(11)
-	      ELSE
-            CLOSE(11, status='delete') !delete any existing file, if no output is desired
-	      ENDIF
-        ENDIF
-     endif !Anne   
-  ENDDO
+    WRITE(subarea,*)id_subbas_extern(i)
 
-  DO i=1,subasin
-    if (res_index(i) /= 0.) then !Anne inserted this line   
-        IF (nbrsec(res_index(i)) /= 0) THEN
-          WRITE(subarea,*)id_subbas_extern(i)
+    write_output = res_index(i) /= 0
+    if (write_output) then
+        IF (nbrsec(res_index(i)) == 0) write_output = .FALSE.
+    end if
 
+    OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_hydraul.out',STATUS='replace')
+    IF (write_output .AND. f_res_hydraul) then
+        WRITE(11,*)'Subasin-ID, year, day, hour, section-ID, depth_sec(m), watelev_sec(m), area_sec(m**2), topwidth_sec(m), energslope_sec(-), hydrad_sec(m), meanvel_sec(m/s), discharge_sec(m**3/s)'
+        CLOSE(11)
+    ELSE
+        CLOSE(11, status='delete') !delete any existing file, if no output is desired
+    ENDIF
+
+    OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_longitudunal.out',STATUS='replace')
+    IF (write_output .AND. f_res_longitudunal) THEN
+        WRITE(11,*)'Subasin-ID, year, day, hour, nbr. sections, minelev_sec(m)'
+    ELSE
+        CLOSE(11, status='delete') !delete any existing file, if no output is desired
+    ENDIF
+
+    if (write_output) then
           DO j=1,nbrsec(res_index(i))
             WRITE(section,*)id_sec_extern(j,res_index(i))
 	        OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_sec'//trim(adjustl(section))// &
 			    '_bedchange.out',STATUS='replace')
+
             IF (f_res_hydraul) then
 	          WRITE(11,*)'Subasin-ID, section-ID, year, day, hour, nbr. points, y-axis(m)'
               CLOSE(11)
@@ -682,49 +704,31 @@ nbrsec=0
               CLOSE(11, status='delete') !delete any existing file, if no output is desired
 	        ENDIF
 	      ENDDO
-        ENDIF
-      endif !Anne  
-  ENDDO
+    ENDIF
 
-  DO i=1,subasin
-   IF (storcap(i) /= 0.) THEN
-    WRITE(subarea,*)id_subbas_extern(i)
+    write_output = res_index(i) /= 0
+    if (write_output) then
+        IF (storcap(i) == 0.) write_output = .FALSE.
+    end if
+
 	OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_sedbal.out',STATUS='replace')
-    IF (f_res_sedbal) then
+    IF (write_output .AND. f_res_sedbal) THEN
 	  WRITE(11,*)'Subasin-ID, year, day, hour, sed_input(ton/timestep), sed_output(ton/timestep), sedimentation(ton/timestep), cum_sedimentation(ton)'
       CLOSE(11)
     ELSE
       CLOSE(11, status='delete') !delete any existing file, if no output is desired
     ENDIF
-   ENDIF
-  ENDDO
 
-  DO i=1,subasin
-   IF (storcap(i) /= 0.) THEN
-    IF (nbrsec(res_index(i)) /= 0) THEN
-      WRITE(subarea,*)id_subbas_extern(i)
-	  OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_longitudunal.out',STATUS='replace')
-      IF (f_res_longitudunal) then
-	    WRITE(11,*)'Subasin-ID, year, day, hour, nbr. sections, minelev_sec(m)'
-	  ELSE
-        CLOSE(11, status='delete') !delete any existing file, if no output is desired
-	  ENDIF
-	ENDIF
-   ENDIF
-  ENDDO
-
-  DO i=1,subasin
-   IF (storcap(i) /= 0.) THEN
-    WRITE(subarea,*)id_subbas_extern(i)
+    write_output = res_index(i) /= 0
 	OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_sedcomposition.out',STATUS='replace')
-    IF (f_res_sedcomposition) then
+    IF (write_output .and. storcap(i) /= 0. .and. f_res_sedcomposition) THEN
 	  WRITE(11,*)'Subasin-ID, year, day, hour, nbr. classes, sedcomp_outflow(-)'
       CLOSE(11)
     ELSE
       CLOSE(11, status='delete') !delete any existing file, if no output is desired
     ENDIF
-   ENDIF
-  ENDDO
+
+ ENDDO
 
 !Ge output file for check some parameters (temporary)
 !***************************************************
@@ -801,14 +805,13 @@ IF (STATUS == 2) THEN
 ! sediment inflow into the reservoir is the generate sediment flow
 ! from the rainfall-runoff processes, calculated using the WASA model
 
-  IF (reservoir_check == 1) THEN
+  IF (reservoir_check == 1) THEN !Till: use pre-specified values as input into reservoir sedimentation module (instead of value computed from hillslope and river)
     DO g=1,n_sed_class
       sediment_in(upstream,g)=frsedinflow(step,res_index(upstream),g)
 !write(*,*)step,upstream,frsedinflow(step,upstream,g),sediment_in(upstream,g)
 	ENDDO
   ENDIF
 !write(*,'(2I4,<n_sed_class>F10.4)')step,upstream,(sediment_in(upstream,g),g=1,n_sed_class)
-!if (id==70)stop
 
 
 ! Determination of total sediment inflow (ton/timestep) and inflow sediment concentration (g/l)
@@ -2050,9 +2053,10 @@ end if
 
 
 ! Print results on bed elevation change of the longitudinal profile of the sub-basin's reservoir
-  IF (reservoir_print == 0) THEN
+  IF (reservoir_print == 0 .AND. res_index(upstream) /=0 .AND. storcap(upstream) == 0.) THEN
    WRITE(subarea,*)id_subbas_extern(upstream)
    j=nbrsec(res_index(upstream))
+
    IF (f_res_sedbal) THEN
    OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_sedbal.out',STATUS='old',POSITION='append')
     WRITE(11,'(4I6,4F15.3)')id_subbas_extern(upstream),t,d,hour,sed_inflow(step,res_index(upstream)),sed_outflow(step,res_index(upstream)), &
@@ -2086,8 +2090,10 @@ IF (STATUS == 3) THEN
 ! Output files of Reservoir Modules
   IF (reservoir_print == 1) THEN
     DO i=1,subasin
+	 if (res_index(i) == 0) cycle
      IF (storcap(i) /= 0. .and. t >= damyear(i)) THEN
       WRITE(subarea,*)id_subbas_extern(i)
+
       IF (nbrsec(res_index(i)) /= 0) THEN
         IF (f_res_hydraul) THEN
 		OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_hydraul.out',STATUS='old',  &
@@ -2166,7 +2172,8 @@ IF (STATUS == 3) THEN
 		ENDDO
         CLOSE(11)
 		ENDIF
-	  ELSE
+	  END IF
+      IF (storcap(i) /= 0. ) THEN
         IF (f_res_sedbal) THEN
         OPEN(11,FILE=pfadn(1:pfadi)//'res_'//trim(adjustl(subarea))//'_sedbal.out',STATUS='old',POSITION='append')
 	    DO d=1,dayyear
@@ -2199,8 +2206,6 @@ IF (STATUS == 3) THEN
     ENDDO
   ENDIF
 END IF
-
-
 
 RETURN
 END SUBROUTINE semres
