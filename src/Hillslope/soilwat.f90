@@ -1053,9 +1053,6 @@
                 !irri_input(i) = irri_input(i)/ (frac_lu(lu_counter2,i_subbas2) * fracterrain(id_tc_type2) * frac_svc(i,tcid_instance2) * Area(i_subbas2) * 1000)
             END IF
         END DO
-       ! testPaul = testPaul + sum(frac_svc(:,tcid_instance2))  !To see if the actual rates get applied, following lines are just for inspection
-       ! Paul = Paul + sum(irri_input)
-       ! testcounter = testcounter + 1
     END IF
 
 
@@ -1121,7 +1118,7 @@
 
 
         IF (doirrigation) THEN
-        INPUT=prec-intcred(i) + q_surf_in/(tcarea2*1.e3)+qsurf(i)/(tcarea2*1.e3*frac_svc(i,tcid_instance2)) + irri_input(i)
+        INPUT=prec-intcred(i) + q_surf_in/(tcarea2*1.e3)+qsurf(i)/(tcarea2*1.e3*frac_svc(i,tcid_instance2)) + irri_input(i) !add irrigation input to SVC
         ELSE
         INPUT=prec-intcred(i) + q_surf_in/(tcarea2*1.e3)+qsurf(i)/(tcarea2*1.e3*frac_svc(i,tcid_instance2))
         ENDIF

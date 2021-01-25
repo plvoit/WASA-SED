@@ -29,7 +29,7 @@
     CHARACTER (LEN=8000) :: cdummy
 
     !----------------------------------------------
-    INTEGER :: PAUL ! for testing GetNumberOfSubstrings(cdummy) IRRIGATION
+    INTEGER :: column_test ! for testing GetNumberOfSubstrings(cdummy) IRRIGATION
     REAL :: frac_irr_tc
     REAL :: frac_irr_lu
     REAL :: frac_svc_x
@@ -677,7 +677,7 @@
 
         READ(11,'(a)', IOSTAT=istate) cdummy
 
-        PAUL = GetNumberOfSubstrings(cdummy)  ! Feststellen der Spalten von Svc.dat für irrigation
+        column_test = GetNumberOfSubstrings(cdummy)  ! Feststellen der Spalten von Svc.dat für irrigation
 
 
         !--------------------------------------------------------------------------------------------
@@ -685,6 +685,7 @@
         allocate(id_svc_extern(nsvc))    !allocate memory for SVC-IDs to be read
         allocate(irri_supply(subasin))   ! needed in subroutine irrigation_abstraction
         allocate(irri_abstraction(subasin))
+        irri_supply = 0.
 
 
 
@@ -753,7 +754,7 @@
 
 
     !-------------------------------------------------
-    IF (PAUL /= k) THEN
+    IF (doirrigation) THEN
     allocate (svc_irr(nsvc))  !svc_irr vektor anlegen. Wird in hymo_h deklariert. Irrigation
     svc_irr = 0
     allocate (frac_irr_sub(subasin)) !Für die spätere Flächenberechnung
@@ -772,20 +773,26 @@
             if (trim(cdummy)=='') cycle    !skip blank lines
 
             !------------------------------------ Falls es mehr als 8 Spalten gibt, lies svc_irr ein
-            IF (PAUL == k) THEN
+            IF (column_test == k .AND. .NOT. doirrigation) THEN
                 READ(cdummy,*, IOSTAT=istate) id_svc_extern(i), j, n, svc_k_fac(i,:), svc_c_fac(i,:), svc_p_fac(i,:), svc_coarse_fac(i,:), svc_n(i,:)
-            ELSE
-                READ(cdummy,*, IOSTAT=istate) id_svc_extern(i), j, n, svc_k_fac(i,:), svc_c_fac(i,:), svc_p_fac(i,:), svc_coarse_fac(i,:), svc_n(i,:), svc_irr(i)
+            ELSE IF (column_test == k .AND. doirrigation ) THEN
+                write(*,'(a,i0,a)')'ERROR(svc.dat): Line ',h,': unexpected number of fields. Irrigation column missing. Check "svc.dat"'
+                stop
+            ELSE IF (column_test == k + 1 .AND. .NOT. doirrigation) THEN
+                READ(cdummy,*, IOSTAT=istate) id_svc_extern(i), j, n, svc_k_fac(i,:), svc_c_fac(i,:), svc_p_fac(i,:), svc_coarse_fac(i,:), svc_n(i,:)
+                write(*,'(a,i0,a)')'Warning(svc.dat): Line ',h,': unexpected number of fields. Check "svc.dat". Last column ignored.'
+            ELSE IF (column_test == k + 1 .AND. doirrigation) THEN
+                  READ(cdummy,*, IOSTAT=istate) id_svc_extern(i), j, n, svc_k_fac(i,:), svc_c_fac(i,:), svc_p_fac(i,:), svc_coarse_fac(i,:), svc_n(i,:), svc_irr(i)
             END IF
 
-            IF (istate /= 0 .OR. (PAUL /=k .AND. PAUL /= k + 1)) THEN    !format error
-                write(*,'(a,i0,a)')'ERROR: svc.dat, line ',h,': unexpected number of fields. Check *_seasons.dat'
+            IF (istate /= 0 .OR. (column_test /=k .AND. column_test /= k + 1)) THEN    !format error
+                write(*,'(a,i0,a)')'ERROR(svc.dat): Line ',h,': unexpected number of fields. Check "svc.dat"'
                 stop
             END IF
 
             svc_soil_veg(i,1)=id_ext2int(j, id_soil_extern)    !store internal soil id of this SVC
             IF (svc_soil_veg(i,1)==-1) THEN    !specified soil not found
-                write(*,'(a,i0,a,i0,a)')'ERROR in svc.dat, line ',h,': could not find soil ', j,' in soil.dat'
+                write(*,'(a,i0,a,i0,a)')'ERROR in svc.dat, line ',h,': could not find soil ', j,' in "soil.dat"'
                 cycle
                 !stop
             END IF
@@ -1865,8 +1872,16 @@ end if ! do_snow
 
 
        !-----------------------------Irrigation-------------------------------------------------
-       ! read irri.dat
+       ! read irri.dat if irrigation is switched on
+
+    IF (doirrigation) THEN
     INQUIRE(FILE=pfadp(1:pfadj)// 'Hillslope/irri.dat', EXIST=file_exists) !if irri.dat exists, read it
+
+    IF (.NOT. file_exists) THEN
+        write(*,'(a,i0,a)')'ERROR (irri.dat): irri.dat not found in folder "Input/Hillslope". To use option "doirrigation" create irri.dat.'
+        stop
+    END IF
+
 
     IF (file_exists) THEN
         source_options(1) = "river" !create array to check validity of irri.dat column for sources
@@ -1877,7 +1892,7 @@ end if ! do_snow
 
         rule_options(1) = "fixed"  !create array to check validity of column "rule" in irri.dat
         rule_options(2) = "seasonal"
-        rule_options(3) = "sm_thresh"
+        rule_options(3) = "cwd"   ! crop water demand
 
         OPEN(11,FILE=pfadp(1:pfadj)// 'Hillslope/irri.dat',STATUS='old',IOSTAT=istate)  ! check if irri.dat contains data
         READ(11,*)  !skip Header
@@ -1906,6 +1921,7 @@ end if ! do_snow
 
         allocate(sub_source(l), irri_source(l), sub_receiver(l), irri_rule(l), irri_rate_gw(subasin+1,subasin, 4), irri_rate_riv(subasin+1,subasin, 4), &  ! subasin + 1 because of option external
                                  irri_rate_res(subasin+1,subasin, 4), irri_rate_lake(subasin+1,subasin, 4),  irri_rate_ext(subasin+1, 4), &
+                                 cwd_gw(subasin+1,subasin+1,4), cwd_ext(subasin+1,4), cwd_riv(subasin+1,subasin+1,4), cwd_res(subasin+1,subasin+1,4), cwd_lake(subasin+1,subasin+1,4), &
                                  loss_gw(subasin),loss_riv(subasin),loss_res(subasin),loss_lake(subasin),loss_ext(subasin), STAT = istate )
          !arrays that will contain data from irri.dat
         if (istate/=0) then
@@ -1929,6 +1945,11 @@ end if ! do_snow
         loss_lake = 0.
         loss_ext = 0.
         loss = 0.
+        cwd_gw = 0.
+        cwd_ext = 0.
+        cwd_riv = 0.
+        cwd_res = 0.
+        cwd_lake = 0.
 
         REWIND(11)
         READ(11,*)
@@ -1943,6 +1964,8 @@ end if ! do_snow
             cdummy=''
             READ(11,'(a)',IOSTAT=istate) cdummy
             dummy1=GetNumberOfSubstrings(cdummy) !Till: count number of fields/columns
+
+            if (trim(cdummy) == '') cycle
 
             if (dummy1 > 9) then    !too many fields in line
                 write(*,'(a,i0,a,i0,a,i0,a)')'ERROR (irri.dat): Line ',h,' contains more (',dummy1,') than the expected 9 fields.'
@@ -1977,7 +2000,7 @@ end if ! do_snow
                 loss_ext(sub_receiver(j)) = loss
             END IF
 
-    !-------------Error checks and Warnings-----------
+    !-------------Checks, Errors and Warnings-----------
              if (sub_source(j)==-1) then    ! the current sub_source was not contained in routing.dat, skip line
                     WRITE(*,'(a, I0, a, I0, a)') 'WARNING (irri.dat): Source subbasin in line ',h,' not listed in routing.dat, ignored.'
                     cycle
@@ -1987,6 +2010,12 @@ end if ! do_snow
                 WRITE(*,'(a, I0, a, I0, a)') 'WARNING (irri.dat): Source option "9999" in line ',h,' only possible when sub_source = 9999 (external). Line ignored.'
                 cycle
              endif
+
+             if (sub_source(j) == 9999 .AND. irri_source(j) /= "9999") then
+                 WRITE(*,'(a, I0, a, I0, a)') 'WARNING (irri.dat): Line ',h,': when sub_source = 9999 (external) source has to be "9999". Changed source to "9999".'
+                 irri_source(j) = "9999"
+             end if
+
 
              if (sub_receiver(j)==-1) then    !the current sub_receiver was not contained in routing.dat and is not type external (Code 9999)
                     WRITE(*,'(a, I0, a, I0, a)') 'WARNING (irri.dat): receiver subbasin in line ',h,' not listed in routing.dat, ignored.'
@@ -2005,7 +2034,7 @@ end if ! do_snow
                     cycle
                 endif
             endif
-            ! Unfortunately this doesn't work because the reservoir index doesn't exist yet
+            ! Unfortunately this doesn't work because the reservoir index doesn't exist yet. this check happens no on daily basis in irrigation_abstraction.f90. Same for lake check
             !if (irri_source(j) == "reservoir" .AND. res_index(sub_source(j)) == 0) then
              !   WRITE(*,'(a, I0, a, I0, a)') 'WARNING (irri.dat): Irrigation source "reservoir" in line ',h,' not possible because Subbasin ',sub_source(j), ' does not contain a reservoir (check reservoir.dat). Line ignored.'
             !end if
@@ -2037,42 +2066,88 @@ end if ! do_snow
                 irri_rate(2:4) = irri_rate(1)
             end if
 
+            if (irri_rule(j) == "cwd" .AND. sub_receiver(j) == 9999) then
+                WRITE(*,'(a, I0, a)') 'WARNING (irri.dat): Line ',h,': When using rule "cwd", sub_receiver can not be external (9999). Line ignored.'
+                cycle
+            end if
+
+            if (irri_rule(j) == "cwd") then
+                season_filecheck = PACK(seasonality_irri(:,1), MASK= seasonality_irri(:,1) == sub_receiver(j))
+                if (SIZE(season_filecheck) == 0) then
+                    WRITE(*,'(a, I0, a, I0, a)') 'WARNING (irri.dat): sub_receiver in line ',h,' not contained in irri_seasons.dat. To use rule "cwd" receiver basin must be included in irri_seasons.dat. Line ignored'
+                    cycle
+                end if
+            end if
+
              IF (ANY(irri_rate(1:4) < 0.)) then !irrigation rate is invalid
                 write(*,'(a,I0,a)')'WARNING (irri.dat): Irrigation rate in line ' ,h, ' is negative. Line ignored.'
                 cycle
              end if
 
+             if (loss < 0 .OR. loss > 1) then
+                write(*,'(a,I0,a)')'WARNING (irri.dat): loss_factor rate in line ' ,h, ' is not between 0 and 1. loss_factor set to 0.8.'
+                loss = 0.8
+             end if
+
              !----------End Error checks
 
 
-             if (irri_source(j) == "groundwater" .AND. sub_receiver(j)== 9999) then
+             if (irri_source(j) == "groundwater" .AND. sub_receiver(j)== 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_gw(subasin+1,sub_source(j),1:4) = irri_rate(1:4)
-             elseif (irri_source(j) == "groundwater" .AND. sub_receiver(j) /= 9999) then
+             elseif (irri_source(j) == "groundwater" .AND. sub_receiver(j) /= 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_gw(sub_receiver(j),sub_source(j), 1:4) = irri_rate(1:4) !assign read rates to the respective source array (gw, res, lake, etc.)
              endif
 
-             if (irri_source(j) == "reservoir" .AND. sub_receiver(j) == 9999) then
+             if (irri_source(j) == "reservoir" .AND. sub_receiver(j) == 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_res(subasin+1,sub_source(j), 1:4) = irri_rate(1:4)
-             else if (irri_source(j) == "reservoir" .AND. sub_receiver(j) /= 9999) then
+             else if (irri_source(j) == "reservoir" .AND. sub_receiver(j) /= 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_res(sub_receiver(j),sub_source(j), 1:4) = irri_rate(1:4) !assign read rates to the respective source array (gw, res, lake, etc.)
              endif
 
-             if (irri_source(j) == "lake" .AND. sub_receiver(j) /= 9999) then
+             if (irri_source(j) == "lake" .AND. sub_receiver(j) /= 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_lake(sub_receiver(j),sub_source(j), 1:4) = irri_rate(1:4) !assign read rates to the respective source array (gw, res, lake, etc.)
-             else if (irri_source(j) == "lake" .AND. sub_receiver(j) == 9999) then
+             else if (irri_source(j) == "lake" .AND. sub_receiver(j) == 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_lake(subasin+1,sub_source(j), 1:4) = irri_rate(1:4)
              end if
 
-             if (irri_source(j) == "river" .AND. sub_receiver(j) /= 9999) then
+             if (irri_source(j) == "river" .AND. sub_receiver(j) /= 9999 .AND. irri_rule(j) /= "cwd" ) then
                 irri_rate_riv(sub_receiver(j),sub_source(j), 1:4) =  irri_rate(1:4) !assign read rates to the respective source array (gw, res, lake, etc.)
-             else if (irri_source(j) == "river" .AND. sub_receiver(j) == 9999) then
+             else if (irri_source(j) == "river" .AND. sub_receiver(j) == 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_riv(subasin+1,sub_source(j), 1:4) = irri_rate(1:4)
              end if
 
-             if (irri_source(j) == "9999" .AND. sub_receiver(j) /= 9999) then
+             if (irri_source(j) == "9999" .AND. sub_receiver(j) /= 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_ext(sub_receiver(j), 1:4) = irri_rate_ext(sub_receiver(j), 1:4) + irri_rate(1:4) !assign read rates to the respective source array (gw, res, lake, etc.)
-             else if (irri_source(j) == "9999" .AND. sub_receiver(j) == 9999) then
+             else if (irri_source(j) == "9999" .AND. sub_receiver(j) == 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_ext(subasin+1, 1:4) = irri_rate_ext(subasin+1, 1:4) + irri_rate(1:4)
+             end if
+
+             if (irri_source(j) == "groundwater" .AND. irri_rule(j) == "cwd" .AND. sub_source(j) /= 9999) then  !assign crop coefficients to the respective source array (gw, res, lake, etc.)
+                cwd_gw(sub_receiver(j),sub_source(j),:) = irri_rate(1:4)
+             else if (irri_source(j) == "groundwater" .AND. irri_rule(j) == "cwd" .AND. sub_source(j) == 9999) then
+                cwd_gw(sub_receiver(j),subasin+1,:) = irri_rate(1:4)
+             end if
+
+             if (sub_source(j) == 9999 .AND. irri_rule(j) == "cwd") then
+                cwd_ext(sub_receiver(j),:) = cwd_ext(sub_receiver(j),:) + irri_rate(1:4)
+             end if
+
+             if (irri_source(j) == "river" .AND. irri_rule(j) == "cwd" .AND. sub_source(j) /= 9999) then
+                cwd_riv(sub_receiver(j),sub_source(j),:) = irri_rate(1:4)
+             else if (irri_source(j) == "river" .AND. irri_rule(j) == "cwd" .AND. sub_source(j) == 9999) then
+                cwd_riv(sub_receiver(j),subasin+1,:) = irri_rate(1:4)
+             end if
+
+             if (irri_source(j) == "reservoir" .AND. irri_rule(j) == "cwd" .AND. sub_source(j) /= 9999) then
+                cwd_res(sub_receiver(j),sub_source(j),:) = irri_rate(1:4)
+             else if (irri_source(j) == "reservoir" .AND. irri_rule(j) == "cwd" .AND. sub_source(j) == 9999) then
+                cwd_res(sub_receiver(j),subasin+1,:) = irri_rate(1:4)
+             end if
+
+             if (irri_source(j) == "lake" .AND. irri_rule(j) == "cwd" .AND. sub_source(j) /= 9999) then
+                cwd_lake(sub_receiver(j),sub_source(j),:) = irri_rate(1:4)
+             else if (irri_source(j) == "reservoir" .AND. irri_rule(j) == "cwd" .AND. sub_source(j) == 9999) then
+                cwd_lake(sub_receiver(j),subasin+1,:) = irri_rate(1:4)
              end if
 
              IF (istate/=0) THEN     !no further line
@@ -2084,6 +2159,7 @@ end if ! do_snow
         CLOSE(11)
         nbr_irri_records = j-1 ! Number of valid irrigation records
 
+    END IF
     END IF
 
 

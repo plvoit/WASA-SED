@@ -28,7 +28,7 @@
     REAL :: sortier(maxterrain),tauschr
     CHARACTER (LEN=8000) :: cdummy
 
-    !----------------------------------------------
+    !--------Irrigation
     INTEGER :: column_test ! for testing GetNumberOfSubstrings(cdummy) IRRIGATION
     REAL :: frac_irr_tc
     REAL :: frac_irr_lu
@@ -643,13 +643,7 @@
         seasonality_coarse=> seasonality_array2('coarse_seasons.dat')    !read seasonality of coarse fraction factor
         seasonality_n     => seasonality_array2('n_seasons.dat'     )    !read seasonality of Manning's n
 
-        seasonality_irri     => seasonality_array2('irri_seasons.dat'   )
-       ! seasonality_irri_gw      => seasonality_array2('irri_gw_seasons.dat'   )    !read seasonality of irrigation from groundwater !Paul 09.11.2020 First version with different seasonality depending on irri_source. For this option were 5 seasons.dat files necesssary. Simplified to one seasonality per sreceiver basin
-       ! seasonality_irri_res     => seasonality_array2('irri_res_seasons.dat'  )    !read seasonality of irrigation from groundwater
-       ! seasonality_irri_lake    => seasonality_array2('irri_lake_seasons.dat'  )    !read seasonality of irrigation from groundwater
-       ! seasonality_irri_riv     => seasonality_array2('irri_riv_seasons.dat'  )    !read seasonality of irrigation from groundwater
-       ! seasonality_irri_ext     => seasonality_array2('irri_ext_seasons.dat'  )    !read seasonality of irrigation from groundwater
-
+        seasonality_irri     => seasonality_array2('irri_seasons.dat'   )  !Irrigation
 
         !** read SVC information (numbering scheme, erosion properties)
         OPEN(11,FILE=pfadp(1:pfadj)// 'Hillslope/svc.dat', IOSTAT=istate,STATUS='old')
@@ -752,7 +746,8 @@
         i=1
         write(fmtstr,*)'(3i, ', SIZE(seasonality_k,dim=2),'F, ',SIZE(seasonality_c,dim=2),'F, ',SIZE(seasonality_p,dim=2),'F, ',SIZE(seasonality_coarse,dim=2),'F, ',SIZE(seasonality_n,dim=2),'F)'    !generate format string according to number of columns to be expected
 
-
+    !Irrigation
+    !Read information from svc.dat
     !-------------------------------------------------
     IF (doirrigation) THEN
     allocate (svc_irr(nsvc))  !svc_irr vektor anlegen. Wird in hymo_h deklariert. Irrigation
@@ -772,7 +767,7 @@
             END IF
             if (trim(cdummy)=='') cycle    !skip blank lines
 
-            !------------------------------------ Falls es mehr als 8 Spalten gibt, lies svc_irr ein
+            !------------------------------------ If there's more than 8 columns, read svc_irr
             IF (column_test == k .AND. .NOT. doirrigation) THEN
                 READ(cdummy,*, IOSTAT=istate) id_svc_extern(i), j, n, svc_k_fac(i,:), svc_c_fac(i,:), svc_p_fac(i,:), svc_coarse_fac(i,:), svc_n(i,:)
             ELSE IF (column_test == k .AND. doirrigation ) THEN
@@ -1409,7 +1404,7 @@
 
 
 
-
+    !Irrigation
     !----------------------------------------------------------------------------------
     ! calculation of the fractions within each subbasin that have the irrigation flags. -> irrigated fraction of each subbasin IRRIGATION
 
@@ -1872,7 +1867,8 @@ end if ! do_snow
 
 
        !-----------------------------Irrigation-------------------------------------------------
-       ! read irri.dat if irrigation is switched on
+       ! read irri.dat if irrigation is switched on, this data will be processed in irrigation_abstraction.f90
+       !
 
     IF (doirrigation) THEN
     INQUIRE(FILE=pfadp(1:pfadj)// 'Hillslope/irri.dat', EXIST=file_exists) !if irri.dat exists, read it
@@ -1925,7 +1921,7 @@ end if ! do_snow
                                  loss_gw(subasin),loss_riv(subasin),loss_res(subasin),loss_lake(subasin),loss_ext(subasin), STAT = istate )
          !arrays that will contain data from irri.dat
         if (istate/=0) then
-            write(*,'(A,i0,a)')'ERROR: Memory allocation error (',istate,') in general-module: ' !Ändern? Was heißt  diese Fehlermeldung?
+            write(*,'(A,i0,a)')'ERROR: Memory allocation error (',istate,') in general-module: '
             stop
         end if
         sub_source = 0
@@ -2090,6 +2086,7 @@ end if ! do_snow
              end if
 
              !----------End Error checks
+             !---- Sort irri.dat entries in respective arraysto be then used in irrigation_abstraction.f90
 
 
              if (irri_source(j) == "groundwater" .AND. sub_receiver(j)== 9999 .AND. irri_rule(j) /= "cwd") then

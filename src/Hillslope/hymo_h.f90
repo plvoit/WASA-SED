@@ -404,7 +404,7 @@ module hymo_h
 
     !-----------------------------------------------------
     ! IRRIGATION VARIABLES
-    REAL, allocatable :: frac_irr_sub(:)  ! Anteil der bewässerten Flächen innerhalb der Subbasins
+    REAL, allocatable :: frac_irr_sub(:)  ! Fraction of irrigated area for each subbasins
     INTEGER, allocatable :: svc_irr(:)  ! irrigation variable svc_dat
     INTEGER, allocatable :: sub_source(:)           !for reading irri.dat
     INTEGER, allocatable :: sub_receiver(:)         !for reading irri.dat
@@ -421,7 +421,7 @@ module hymo_h
     REAL, allocatable :: cwd_lake(:,:,:)                     ! for storing coefficients for crop water demand
     CHARACTER(len=11), allocatable :: irri_source(:)    !for reading irri.dat
     INTEGER ::  nbr_irri_records !total number of vavlid irrigation records in irri.dat
-    REAL, allocatable :: irri_supply(:) !stores the amout of irrigation water each subbasin recieves for each timestep  !allocated with dimension subasin in readhymo
+    REAL, allocatable :: irri_supply(:) !stores the amount of irrigation water each subbasin will recieve in next timestep  !allocated with dimension subasin in readhymo
     REAL, allocatable :: irri_abstraction(:) !stores the amout of irrigation water that is taken from each subbasin  for each timestep  !allocated with dimension subasin in readhymo
     INTEGER, pointer :: seasonality_irri(:,:)
     !INTEGER, pointer :: seasonality_irri_res(:,:)   !Paul 09.11.2020 First version with different seasonality depending on irri_source. For this option were 5 seasons.dat files necesssary. Simplified to one seasonality per sreceiver basin
@@ -434,10 +434,8 @@ module hymo_h
     REAL, allocatable :: loss_res(:)
     REAL, allocatable :: loss_lake(:)
     REAL, allocatable :: loss_ext(:)
-    REAL :: test_supply             ! Test variables: DELETE!
-    REAL :: testPAUL
-    REAL :: Paul
-    INTEGER :: testcounter
+
+
 
 
     !Till: these are all output variables that are currently not used
