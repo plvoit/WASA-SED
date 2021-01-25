@@ -679,6 +679,8 @@
         allocate(id_svc_extern(nsvc))    !allocate memory for SVC-IDs to be read
         allocate(irri_supply(subasin))   ! needed in subroutine irrigation_abstraction
         allocate(irri_abstraction(subasin))
+        allocate(rate(subasin+1))
+        allocate(rate_cwd(subasin + 1))
         irri_supply = 0.
 
 
@@ -1984,17 +1986,7 @@ end if ! do_snow
             sub_receiver(j) = id_ext2int(sub_receiver(j),id_subbas_extern)
             endif
 
-            IF (irri_source(j) == "groundwater" .AND. sub_receiver(j) /= 9999) THEN  !Sort the loss factors
-                loss_gw(sub_receiver(j)) = loss
-            ELSE IF (irri_source(j) == "river" .AND. sub_receiver(j) /= 9999) THEN
-                loss_riv(sub_receiver(j)) = loss
-            ELSE IF (irri_source(j) == "reservoir" .AND. sub_receiver(j) /= 9999) THEN
-                loss_res(sub_receiver(j)) = loss
-            ELSE IF (irri_source(j) == "lake" .AND. sub_receiver(j) /= 9999) THEN
-                loss_lake(sub_receiver(j)) = loss
-            ELSE IF (irri_source(j) == "9999" .AND. sub_receiver(j) /= 9999) THEN
-                loss_ext(sub_receiver(j)) = loss
-            END IF
+
 
     !-------------Checks, Errors and Warnings-----------
              if (sub_source(j)==-1) then    ! the current sub_source was not contained in routing.dat, skip line
@@ -2086,8 +2078,21 @@ end if ! do_snow
              end if
 
              !----------End Error checks
-             !---- Sort irri.dat entries in respective arraysto be then used in irrigation_abstraction.f90
 
+
+            IF (irri_source(j) == "groundwater" .AND. sub_receiver(j) /= 9999) THEN  !Sort the loss factors
+                loss_gw(sub_receiver(j)) = loss
+            ELSE IF (irri_source(j) == "river" .AND. sub_receiver(j) /= 9999) THEN
+                loss_riv(sub_receiver(j)) = loss
+            ELSE IF (irri_source(j) == "reservoir" .AND. sub_receiver(j) /= 9999) THEN
+                loss_res(sub_receiver(j)) = loss
+            ELSE IF (irri_source(j) == "lake" .AND. sub_receiver(j) /= 9999) THEN
+                loss_lake(sub_receiver(j)) = loss
+            ELSE IF (irri_source(j) == "9999" .AND. sub_receiver(j) /= 9999) THEN
+                loss_ext(sub_receiver(j)) = loss
+            END IF
+            !
+            !---- Sort irri.dat entries in respective arrays to be then used in irrigation_abstraction.f90
 
              if (irri_source(j) == "groundwater" .AND. sub_receiver(j)== 9999 .AND. irri_rule(j) /= "cwd") then
                 irri_rate_gw(subasin+1,sub_source(j),1:4) = irri_rate(1:4)

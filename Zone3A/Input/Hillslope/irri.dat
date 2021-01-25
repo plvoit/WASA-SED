@@ -1,3 +1,5 @@
 # Specification of irrigation operations
 sub_source	source	sub_receiver	rule	rate	rate2	rate3	rate4	loss_factor
-2	river	2	fixed	26254000	26254000	26254000	26254000	0.8
+9999	9999	1	seasonal	1000	1000	1000	1000	0.8
+9999	9999	2	seasonal	2000	2000	2000	2000	0.8
+9999	9999	3	seasonal	2000	2000	2000	2000	0.8

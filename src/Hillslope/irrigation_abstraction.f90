@@ -13,7 +13,6 @@ use utils_h
     IMPLICIT NONE
     INTEGER :: sb_counter, i     !counters
     REAL :: abstraction_requested, abstraction_available, all_request  ![m^3]
-    REAL :: rate(subasin + 1), rate_cwd(subasin + 1)
     INTEGER, allocatable :: receiver_basins(:), sub_exists(:)
     REAL :: dummy
 
@@ -93,9 +92,10 @@ use utils_h
             END IF
         END IF
 
+
+
         !  Extraction of groundwater from all the LU's in Subbasin proportionally to the amount of groundwater stored in each LU. (Full LU's give a lot of water, empty ones just a bit)
         deepgw(1:nbr_lu(sb_counter),sb_counter) = deepgw(1:nbr_lu(sb_counter),sb_counter) - deepgw(1:nbr_lu(sb_counter),sb_counter)/abstraction_available * abstraction_requested
-
         irri_abstraction(sb_counter) = irri_abstraction(sb_counter) + abstraction_requested  !Write extracted water from current subbasin
 
         !Write extracted water for each receiver basin but skip external receiver basins (code 9999) since this water just disappears outside the model
@@ -120,7 +120,7 @@ use utils_h
             rate = calc_seasonality2(sub_receiver(receiver_basins(1)), t, d, seasonality_irri, irri_rate_ext) !this function needs one seasonally irrigated subbasinId as first argument and then strangely computes the values for all the seasonal and fixed receivers
             irri_supply = irri_supply + rate(1:subasin) * loss_ext
         ELSE IF (SIZE(receiver_basins) == 0) THEN
-            rate = irri_rate_ext(:,1)
+            rate = irri_rate_ext(1,1:subasin)
             irri_supply = irri_supply + rate(1:subasin) * loss_ext
         END IF
     END IF
